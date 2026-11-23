@@ -1,0 +1,6 @@
+[tools]
+just = "latest"
+trivy = "latest"
+hadolint = "latest"
+gitleaks = "latest"
+dotnet = "8"

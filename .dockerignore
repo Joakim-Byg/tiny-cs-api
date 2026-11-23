@@ -1,0 +1,11 @@
+**/.git
+**/.idea
+**/.vscode
+**/bin
+**/obj
+**/target
+**/.sarif
+**/test-results
+**/node_modules
+**/__pycache__
+*.trx

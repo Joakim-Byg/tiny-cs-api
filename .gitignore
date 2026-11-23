@@ -1,0 +1,36 @@
+# OS & Editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Pipeline & Test Artifacts
+.sarif/
+test-results/
+coverage/
+*.out
+*.trx
+*.xml
+*.prof
+
+# Logs & Environment
+*.log
+.env
+.env.local
+
+# Language Specific Artifacts
+bin/
+obj/
+dist/
+build/
+target/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+node_modules/
+vendor/
+.venv/
+venv/

@@ -1,0 +1,4 @@
+# Hadolint configuration
+ignored:
+  - DL3007 # Allow :latest tags for Chainguard images
+  - DL3066 # Allow user specification in builder stages

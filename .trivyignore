@@ -1,0 +1,9 @@
+# Trivy vulnerability exception records
+#
+# Release Gate Policy:
+# - Blocks on Critical or High vulnerabilities with available vendor fixes.
+# - Exceptions require an unexpired record with named owner and technical justification.
+# - Maximum exception window is 30 days.
+#
+# Example exception format:
+# CVE-2026-1234
