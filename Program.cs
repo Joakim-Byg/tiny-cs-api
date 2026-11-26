@@ -7,13 +7,23 @@ using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add runtime-reloadable configuration sources for dynamic feature flags
+// Add runtime-reloadable configuration sources (ConfigMaps)
+builder.Configuration.AddJsonFile("config/config.json", optional: true, reloadOnChange: true);
 builder.Configuration.AddJsonFile("config/features.json", optional: true, reloadOnChange: true);
 var customConfigPath = Environment.GetEnvironmentVariable("CONFIG_PATH");
-if (!string.IsNullOrEmpty(customConfigPath) && customConfigPath != "config/features.json")
+if (!string.IsNullOrEmpty(customConfigPath) && customConfigPath != "config/config.json" && customConfigPath != "config/features.json")
 {
     builder.Configuration.AddJsonFile(customConfigPath, optional: true, reloadOnChange: true);
 }
+
+// Add directory-mounted Kubernetes secrets (KeyPerFile) with dynamic reload support
+var secretsDir = Environment.GetEnvironmentVariable("SECRETS_PATH") ?? "/app/secrets";
+if (Directory.Exists(secretsDir))
+{
+    builder.Configuration.AddKeyPerFile(directoryPath: secretsDir, optional: true, reloadOnChange: true);
+}
+builder.Configuration.AddJsonFile(Path.Combine(secretsDir, "secret.json"), optional: true, reloadOnChange: true);
+builder.Configuration.AddJsonFile("config/secret.json", optional: true, reloadOnChange: true);
 
 // Silence verbose ASP.NET Core framework diagnostic logs
 builder.Logging.ClearProviders();
@@ -195,6 +205,42 @@ app.MapGet("/api/dark-launch", (IConfiguration config) =>
         status = "enabled",
         feature = "dark-launch",
         message,
+        timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
+    });
+});
+
+app.MapGet("/api/db-status", (IConfiguration config) =>
+{
+    var connStr = config.GetConnectionString("DefaultConnection")
+                  ?? config["ConnectionStrings:DefaultConnection"]
+                  ?? config["ConnectionStrings__DefaultConnection"]
+                  ?? config["DefaultConnection"]
+                  ?? config["DATABASE_URL"];
+
+    if (string.IsNullOrEmpty(connStr))
+    {
+        return Results.Ok(new
+        {
+            configured = false,
+            message = "No database connection string configured.",
+            timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
+        });
+    }
+
+    // Mask passwords in both standard ADO.NET and URI connection string formats
+    var masked = System.Text.RegularExpressions.Regex.Replace(
+        connStr,
+        @"(?i)(password|pwd)=[^;]+",
+        "$1=******");
+    masked = System.Text.RegularExpressions.Regex.Replace(
+        masked,
+        @"://([^:]+):([^@]+)@",
+        "://$1:******@");
+
+    return Results.Ok(new
+    {
+        configured = true,
+        connectionString = masked,
         timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
     });
 });

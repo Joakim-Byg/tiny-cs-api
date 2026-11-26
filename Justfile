@@ -81,6 +81,11 @@ exercise tag=IMAGE_TAG port="8080":
         exit 1
     fi
 
+    echo "==> Checking database status endpoint (/api/db-status)..."
+    DB_OUT=$(curl -fsS "http://127.0.0.1:{{port}}/api/db-status")
+    echo "$DB_OUT" | grep -q '"configured"'
+    echo "✓ DB status endpoint passed"
+
     echo "==> All endpoint exercises completed successfully!"
 
 # Scan dependencies and container image for vulnerabilities with Trivy
@@ -99,10 +104,20 @@ all: quality test build exercise scan
     @echo "==> All pipeline stages completed successfully!"
 
 # Run service and local dependencies with Compose (docker compose / podman compose)
-run:
-    @echo "==> Starting {{SERVICE_NAME}} with {{COMPOSE_CMD}}..."
-    {{COMPOSE_CMD}} up -d
-    @echo "✓ {{SERVICE_NAME}} running at http://127.0.0.1:8080 (readiness: /readyz, liveness: /livez, metrics: /metrics)"
+run conn="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> Starting {{SERVICE_NAME}} with {{COMPOSE_CMD}}..."
+    if [ -n "{{conn}}" ]; then
+        DB_CONNECTION_STRING="{{conn}}" {{COMPOSE_CMD}} up -d
+    else
+        {{COMPOSE_CMD}} up -d
+    fi
+    echo "✓ {{SERVICE_NAME}} running at http://127.0.0.1:8080"
+    echo "  • Status:      http://127.0.0.1:8080/"
+    echo "  • DB Status:   http://127.0.0.1:8080/api/db-status"
+    echo "  • Features:    http://127.0.0.1:8080/features"
+    echo "  • Dark Launch: http://127.0.0.1:8080/api/dark-launch"
 
 # Alias for run
 up: run

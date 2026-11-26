@@ -19,6 +19,11 @@ coverage/
 *.log
 .env
 .env.local
+*secret.json
+!*secret.example.json
+secrets/*
+!secrets/.gitkeep
+!secrets/*.example*
 
 # Language Specific Artifacts
 bin/

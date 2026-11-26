@@ -141,4 +141,73 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
             }
         }
     }
+
+    [Fact]
+    public async Task GetDbStatusEndpoint_WhenNotConfigured_ReturnsConfiguredFalse()
+    {
+        var response = await _client.GetAsync("/api/db-status");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"configured\":false", content);
+    }
+
+    [Fact]
+    public async Task GetDbStatusEndpoint_WhenConfiguredViaEnv_ReturnsMaskedPassword()
+    {
+        try
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", "Host=db.internal;Database=demo;Username=app;Password=MySuperSecretPassword;");
+
+            using var customFactory = new WebApplicationFactory<Program>();
+            var client = customFactory.CreateClient();
+
+            var response = await client.GetAsync("/api/db-status");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var content = await response.Content.ReadAsStringAsync();
+
+            Assert.Contains("\"configured\":true", content);
+            Assert.Contains("Password=******", content);
+            Assert.DoesNotContain("MySuperSecretPassword", content);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", null);
+        }
+    }
+
+    [Fact]
+    public async Task GetDbStatusEndpoint_WhenConfiguredViaMountedSecretDirectory_ResolvesConnection()
+    {
+        var tempSecretDir = Path.Combine(Path.GetTempPath(), "tiny-cs-api-secrets-" + Guid.NewGuid());
+        Directory.CreateDirectory(tempSecretDir);
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(tempSecretDir, "ConnectionStrings__DefaultConnection"),
+                "Host=k8s-vault-db;Database=prod;Username=svc;Password=TopSecretVaultValue;");
+
+            Environment.SetEnvironmentVariable("SECRETS_PATH", tempSecretDir);
+
+            using var customFactory = new WebApplicationFactory<Program>();
+            var client = customFactory.CreateClient();
+
+            var response = await client.GetAsync("/api/db-status");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var content = await response.Content.ReadAsStringAsync();
+
+            Assert.Contains("\"configured\":true", content);
+            Assert.Contains("k8s-vault-db", content);
+            Assert.Contains("Password=******", content);
+            Assert.DoesNotContain("TopSecretVaultValue", content);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SECRETS_PATH", null);
+            if (Directory.Exists(tempSecretDir))
+            {
+                Directory.Delete(tempSecretDir, true);
+            }
+        }
+    }
 }

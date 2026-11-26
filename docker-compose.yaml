@@ -12,8 +12,11 @@ services:
       - TZ=Etc/UTC
       - OTEL_SERVICE_NAME=tiny-cs-api
       - OTEL_RESOURCE_ATTRIBUTES=service.name=tiny-cs-api,service.version=1.0.0,deployment.environment=local
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Host=localhost;Port=5432;Database=tinydb;Username=demouser;Password=demopassword;}
+      - SECRETS_PATH=/app/secrets
     volumes:
       - ./config:/app/config:ro
+      - ./secrets:/app/secrets:ro
     user: "65532:65532"
     read_only: true
     tmpfs:
