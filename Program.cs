@@ -196,23 +196,23 @@ app.MapGet("/api/dark-launch", (IConfiguration config) =>
     var isEnabled = config.GetValue<bool>("Features:DarkLaunch:Enabled");
     if (!isEnabled)
     {
-        return Results.NotFound(new
+        return Results.Text(JsonSerializer.Serialize(new
         {
             status = "disabled",
             feature = "dark-launch",
             message = "Dark launch endpoint is currently disabled via configuration.",
             timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
-        });
+        }), "application/json", statusCode: StatusCodes.Status404NotFound);
     }
 
     var message = config["Features:DarkLaunch:Message"] ?? "Dark launch feature is active!";
-    return Results.Ok(new
+    return Results.Text(JsonSerializer.Serialize(new
     {
         status = "enabled",
         feature = "dark-launch",
         message,
         timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
-    });
+    }), "application/json", statusCode: StatusCodes.Status200OK);
 });
 
 app.MapGet("/api/db-status", (IConfiguration config) =>
@@ -225,12 +225,12 @@ app.MapGet("/api/db-status", (IConfiguration config) =>
 
     if (string.IsNullOrEmpty(connStr))
     {
-        return Results.Ok(new
+        return Results.Text(JsonSerializer.Serialize(new
         {
             configured = false,
             message = "No database connection string configured.",
             timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
-        });
+        }), "application/json", statusCode: StatusCodes.Status200OK);
     }
 
     // Mask passwords in both standard ADO.NET and URI connection string formats
@@ -243,12 +243,12 @@ app.MapGet("/api/db-status", (IConfiguration config) =>
         @"://([^:]+):([^@]+)@",
         "://$1:******@");
 
-    return Results.Ok(new
+    return Results.Text(JsonSerializer.Serialize(new
     {
         configured = true,
         connectionString = masked,
         timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
-    });
+    }), "application/json", statusCode: StatusCodes.Status200OK);
 });
 
 app.MapMetrics("/metrics");
