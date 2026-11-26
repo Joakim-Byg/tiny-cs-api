@@ -28,7 +28,7 @@ jobs:
       - name: Unit and integration tests
         run: just test
 
-      # 3. Packaging
+      # 3. Packaging (Native local build for tests)
       - name: Build candidate container image
         run: just build
 
@@ -40,7 +40,16 @@ jobs:
       - name: Scan dependencies and container image
         run: just scan
 
-      # 6. Extract Metadata & Tags
+      # 6. Buildx & QEMU for Multi-Arch
+      - name: Set up QEMU
+        if: github.event_name != 'pull_request'
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        if: github.event_name != 'pull_request'
+        uses: docker/setup-buildx-action@v4
+
+      # 7. Extract Metadata & Tags
       - name: Extract Docker metadata
         if: github.event_name != 'pull_request'
         id: meta
@@ -52,7 +61,7 @@ jobs:
             type=sha,format=short
             type=ref,event=tag
 
-      # 7. Publish to GitHub Container Registry
+      # 8. Publish Multi-Arch Image to GHCR
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
@@ -61,15 +70,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag and push container image
+      - name: Build and push multi-arch container image
         if: github.event_name != 'pull_request'
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-        run: |
-          for tag in $TAGS; do
-            docker tag tiny-cs-api:candidate "$tag"
-            docker push "$tag"
-          done
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Summary
         if: github.event_name != 'pull_request'
@@ -77,7 +88,9 @@ jobs:
           TAGS: ${{ steps.meta.outputs.tags }}
           IMAGE_NAME: ${{ github.repository }}
         run: |
-          echo "### Container Image Published :package:" >> $GITHUB_STEP_SUMMARY
+          echo "### Multi-Arch Container Image Published :package:" >> $GITHUB_STEP_SUMMARY
+          echo "Architectures: \`linux/amd64\`, \`linux/arm64\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "Available tags:" >> $GITHUB_STEP_SUMMARY
           for tag in $TAGS; do
             echo "- \`$tag\`" >> $GITHUB_STEP_SUMMARY
