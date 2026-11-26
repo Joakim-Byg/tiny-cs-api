@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Tests;
@@ -99,7 +101,10 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task GetDarkLaunchEndpoint_WhenDynamicallyEnabledViaConfigFile_ReloadsAtRuntime()
     {
-        var tempConfigFile = Path.GetTempFileName();
+        var testDir = Path.Combine(Directory.GetCurrentDirectory(), "test-config-" + Guid.NewGuid());
+        Directory.CreateDirectory(testDir);
+        var tempConfigFile = Path.Combine(testDir, "features.json");
+
         try
         {
             await File.WriteAllTextAsync(tempConfigFile, "{\"Features\":{\"DarkLaunch\":{\"Enabled\":false,\"Message\":\"Initial\"}}}");
@@ -112,14 +117,17 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
             var response1 = await client.GetAsync("/api/dark-launch");
             Assert.Equal(HttpStatusCode.NotFound, response1.StatusCode);
 
+            var configRoot = (IConfigurationRoot)customFactory.Services.GetRequiredService<IConfiguration>();
+
             // 2. Modify config file at runtime
+            await Task.Delay(500); // ensure timestamp changes
             await File.WriteAllTextAsync(tempConfigFile, "{\"Features\":{\"DarkLaunch\":{\"Enabled\":true,\"Message\":\"Dynamically Activated!\"}}}");
 
             // Allow FileSystemWatcher to detect file modification
             HttpResponseMessage? response2 = null;
-            for (var i = 0; i < 20; i++)
+            for (var i = 0; i < 30; i++)
             {
-                await Task.Delay(100);
+                await Task.Delay(200);
                 response2 = await client.GetAsync("/api/dark-launch");
                 if (response2.StatusCode == HttpStatusCode.OK)
                 {
@@ -135,9 +143,9 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
         finally
         {
             Environment.SetEnvironmentVariable("CONFIG_PATH", null);
-            if (File.Exists(tempConfigFile))
+            if (Directory.Exists(testDir))
             {
-                File.Delete(tempConfigFile);
+                Directory.Delete(testDir, true);
             }
         }
     }
