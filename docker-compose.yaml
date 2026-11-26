@@ -12,6 +12,9 @@ services:
       - TZ=Etc/UTC
       - OTEL_SERVICE_NAME=tiny-cs-api
       - OTEL_RESOURCE_ATTRIBUTES=service.name=tiny-cs-api,service.version=1.0.0,deployment.environment=local
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://host.docker.internal:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING:-Host=localhost;Port=5432;Database=tinydb;Username=demouser;Password=demopassword;}
       - SECRETS_PATH=/app/secrets
     volumes:

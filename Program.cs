@@ -47,27 +47,33 @@ builder.Services.AddOpenTelemetry()
             };
         });
 
-        var tracesExporter = Environment.GetEnvironmentVariable("OTEL_TRACES_EXPORTER");
-        var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+        var tracesExporter = Environment.GetEnvironmentVariable("OTEL_TRACES_EXPORTER") ?? "otlp";
 
-        if (tracesExporter == "none")
+        if (tracesExporter != "none")
         {
-            // Telemetry export explicitly disabled
-        }
-        else if (!string.IsNullOrEmpty(otlpEndpoint) || tracesExporter == "otlp")
-        {
+            // Push traces explicitly to an OTLP endpoint (Tempo / OTel Collector)
             tracing.AddOtlpExporter(opt =>
             {
+                var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+                                   ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+
                 if (!string.IsNullOrEmpty(otlpEndpoint))
                 {
                     opt.Endpoint = new Uri(otlpEndpoint);
                 }
+
+                var protocol = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL")
+                               ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_PROTOCOL");
+
+                if (protocol == "grpc")
+                {
+                    opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                }
+                else if (protocol == "http/protobuf" || protocol == "http/json" || (otlpEndpoint != null && (otlpEndpoint.Contains(":4318") || otlpEndpoint.EndsWith("/v1/traces"))))
+                {
+                    opt.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+                }
             });
-        }
-        else
-        {
-            // Default: stdout / console exporter for local development
-            tracing.AddConsoleExporter();
         }
     });
 
