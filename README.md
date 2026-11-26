@@ -7,7 +7,7 @@ C# (.NET 8) microservice template configured for pipeline execution and local de
 ```bash
 just quality   # Format check, hadolint, and gitleaks
 just test      # Run unit tests and retain artifacts in ./test-results
-just build     # Build Chainguard candidate container image (tiny-cs-api:candidate)
+just build     # Build candidate container image (tiny-cs-api:candidate)
 just exercise  # Exercise container under Restricted PSS constraints (UID 65532, read-only rootfs)
 just scan      # Scan dependencies and container image with Trivy
 just all       # Run all stages sequentially
@@ -22,3 +22,13 @@ just down      # Stop local Compose service
 - `GET /livez`: Standard liveness probe
 - `GET /health/startup`: Startup probe
 - `GET /metrics`: Prometheus formatted metrics with request counter and duration histogram
+
+## Pull and Run Container
+
+Once published via the GitHub Actions workflow:
+
+```bash
+docker pull ghcr.io/joakim-byg/tiny-cs-api:latest
+docker run --rm -p 8080:8080 ghcr.io/joakim-byg/tiny-cs-api:latest
+```
+

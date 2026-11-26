@@ -1,0 +1,86 @@
+name: Build, Test, and Publish
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up tools (mise)
+        uses: jdx/mise-action@v2
+
+      # 1. Quality & Linting Gate
+      - name: Code quality & static analysis
+        run: just quality
+
+      # 2. Automated Tests
+      - name: Unit and integration tests
+        run: just test
+
+      # 3. Packaging
+      - name: Build candidate container image
+        run: just build
+
+      # 4. Runtime Isolation Check (Local PSS Simulation)
+      - name: Exercise under Restricted PSS
+        run: just exercise
+
+      # 5. Vulnerability Scan
+      - name: Scan dependencies and container image
+        run: just scan
+
+      # 6. Extract Metadata & Tags
+      - name: Extract Docker metadata
+        if: github.event_name != 'pull_request'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=ref,event=tag
+
+      # 7. Publish to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push container image
+        if: github.event_name != 'pull_request'
+        run: |
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            docker tag tiny-cs-api:candidate "$tag"
+            docker push "$tag"
+          done
+
+      - name: Summary
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "### Container Image Published :package:" >> $GITHUB_STEP_SUMMARY
+          echo "Available tags:" >> $GITHUB_STEP_SUMMARY
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            echo "- \`$tag\`" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pull command:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${IMAGE_NAME,,}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        env:
+          IMAGE_NAME: ${{ github.repository }}
