@@ -38,7 +38,7 @@ exercise tag=IMAGE_TAG port="8080":
     set -euo pipefail
     CONTAINER_NAME="{{SERVICE_NAME}}-exercise-$$"
     echo "==> Starting container $CONTAINER_NAME under Restricted PSS constraints..."
-    {{CONTAINER_CMD}} run -d --rm -p {{port}}:8080 --user 65532:65532 --read-only --tmpfs /tmp --name "$CONTAINER_NAME" {{SERVICE_NAME}}:{{tag}}
+    {{CONTAINER_CMD}} run -d --rm -p {{port}}:8080 -v "$(pwd)/config:/app/config:ro" --user 65532:65532 --read-only --tmpfs /tmp --name "$CONTAINER_NAME" {{SERVICE_NAME}}:{{tag}}
 
     cleanup() {
         echo "==> Stopping test container $CONTAINER_NAME..."
@@ -67,6 +67,19 @@ exercise tag=IMAGE_TAG port="8080":
     echo "$METRICS" | grep -q "http_requests_total"
     echo "$METRICS" | grep -q "http_request_duration_seconds"
     echo "✓ Metrics endpoint passed"
+
+    echo "==> Checking features status endpoint (/features)..."
+    curl -fsS "http://127.0.0.1:{{port}}/features" | grep -q "darkLaunch"
+    echo "✓ Features endpoint passed"
+
+    echo "==> Checking dark launch endpoint (/api/dark-launch)..."
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:{{port}}/api/dark-launch")
+    if [ "$STATUS" = "404" ]; then
+        echo "✓ Dark launch endpoint returned 404 (disabled by default)"
+    else
+        echo "✗ Unexpected status: $STATUS"
+        exit 1
+    fi
 
     echo "==> All endpoint exercises completed successfully!"
 

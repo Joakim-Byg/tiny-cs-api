@@ -7,6 +7,14 @@ using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add runtime-reloadable configuration sources for dynamic feature flags
+builder.Configuration.AddJsonFile("config/features.json", optional: true, reloadOnChange: true);
+var customConfigPath = Environment.GetEnvironmentVariable("CONFIG_PATH");
+if (!string.IsNullOrEmpty(customConfigPath) && customConfigPath != "config/features.json")
+{
+    builder.Configuration.AddJsonFile(customConfigPath, optional: true, reloadOnChange: true);
+}
+
 // Silence verbose ASP.NET Core framework diagnostic logs
 builder.Logging.ClearProviders();
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
@@ -147,6 +155,49 @@ app.MapGet("/health/live", () => Results.Text(JsonSerializer.Serialize(new
     service = serviceName,
     timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
 }), "application/json"));
+
+app.MapGet("/features", (IConfiguration config) =>
+{
+    var isEnabled = config.GetValue<bool>("Features:DarkLaunch:Enabled");
+    var message = config["Features:DarkLaunch:Message"] ?? "Dark launch feature is disabled.";
+
+    return Results.Text(JsonSerializer.Serialize(new
+    {
+        features = new
+        {
+            darkLaunch = new
+            {
+                enabled = isEnabled,
+                message
+            }
+        },
+        timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
+    }), "application/json");
+});
+
+app.MapGet("/api/dark-launch", (IConfiguration config) =>
+{
+    var isEnabled = config.GetValue<bool>("Features:DarkLaunch:Enabled");
+    if (!isEnabled)
+    {
+        return Results.NotFound(new
+        {
+            status = "disabled",
+            feature = "dark-launch",
+            message = "Dark launch endpoint is currently disabled via configuration.",
+            timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
+        });
+    }
+
+    var message = config["Features:DarkLaunch:Message"] ?? "Dark launch feature is active!";
+    return Results.Ok(new
+    {
+        status = "enabled",
+        feature = "dark-launch",
+        message,
+        timestamp = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
+    });
+});
 
 app.MapMetrics("/metrics");
 

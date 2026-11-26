@@ -1,0 +1,8 @@
+{
+  "Features": {
+    "DarkLaunch": {
+      "Enabled": false,
+      "Message": "Preview of new dark-launched capability"
+    }
+  }
+}

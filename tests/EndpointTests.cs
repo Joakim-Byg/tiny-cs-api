@@ -77,4 +77,68 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains("http_requests_total", content);
         Assert.Contains("http_request_duration_seconds", content);
     }
+
+    [Fact]
+    public async Task GetDarkLaunchEndpoint_WhenDisabled_ReturnsNotFound()
+    {
+        var response = await _client.GetAsync("/api/dark-launch");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("disabled", content);
+    }
+
+    [Fact]
+    public async Task GetFeaturesEndpoint_ReturnsFeatureStatus()
+    {
+        var response = await _client.GetAsync("/features");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("darkLaunch", content);
+    }
+
+    [Fact]
+    public async Task GetDarkLaunchEndpoint_WhenDynamicallyEnabledViaConfigFile_ReloadsAtRuntime()
+    {
+        var tempConfigFile = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(tempConfigFile, "{\"Features\":{\"DarkLaunch\":{\"Enabled\":false,\"Message\":\"Initial\"}}}");
+            Environment.SetEnvironmentVariable("CONFIG_PATH", tempConfigFile);
+
+            using var customFactory = new WebApplicationFactory<Program>();
+            var client = customFactory.CreateClient();
+
+            // 1. Initial state: disabled -> 404
+            var response1 = await client.GetAsync("/api/dark-launch");
+            Assert.Equal(HttpStatusCode.NotFound, response1.StatusCode);
+
+            // 2. Modify config file at runtime
+            await File.WriteAllTextAsync(tempConfigFile, "{\"Features\":{\"DarkLaunch\":{\"Enabled\":true,\"Message\":\"Dynamically Activated!\"}}}");
+
+            // Allow FileSystemWatcher to detect file modification
+            HttpResponseMessage? response2 = null;
+            for (var i = 0; i < 20; i++)
+            {
+                await Task.Delay(100);
+                response2 = await client.GetAsync("/api/dark-launch");
+                if (response2.StatusCode == HttpStatusCode.OK)
+                {
+                    break;
+                }
+            }
+
+            Assert.NotNull(response2);
+            Assert.Equal(HttpStatusCode.OK, response2.StatusCode);
+            var content2 = await response2.Content.ReadAsStringAsync();
+            Assert.Contains("Dynamically Activated!", content2);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CONFIG_PATH", null);
+            if (File.Exists(tempConfigFile))
+            {
+                File.Delete(tempConfigFile);
+            }
+        }
+    }
 }
