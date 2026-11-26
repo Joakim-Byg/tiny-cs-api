@@ -15,10 +15,10 @@ jobs:
       packages: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up tools (mise)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v5
 
       # 1. Quality & Linting Gate
       - name: Code quality & static analysis
@@ -44,7 +44,7 @@ jobs:
       - name: Extract Docker metadata
         if: github.event_name != 'pull_request'
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -55,7 +55,7 @@ jobs:
       # 7. Publish to GitHub Container Registry
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -63,18 +63,23 @@ jobs:
 
       - name: Tag and push container image
         if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          for tag in ${{ steps.meta.outputs.tags }}; do
+          for tag in $TAGS; do
             docker tag tiny-cs-api:candidate "$tag"
             docker push "$tag"
           done
 
       - name: Summary
         if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_NAME: ${{ github.repository }}
         run: |
           echo "### Container Image Published :package:" >> $GITHUB_STEP_SUMMARY
           echo "Available tags:" >> $GITHUB_STEP_SUMMARY
-          for tag in ${{ steps.meta.outputs.tags }}; do
+          for tag in $TAGS; do
             echo "- \`$tag\`" >> $GITHUB_STEP_SUMMARY
           done
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -82,5 +87,3 @@ jobs:
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ghcr.io/${IMAGE_NAME,,}:latest" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        env:
-          IMAGE_NAME: ${{ github.repository }}
